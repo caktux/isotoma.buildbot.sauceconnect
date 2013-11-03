@@ -230,7 +230,7 @@ class SauceTests(ShellCommand):
     haltOnFailure = True
 
     def __init__(self, username, api_key, **kwargs):
-        # kwargs.setdefault('logfiles', {})['sauce.log'] = 'sauce.log'
+        kwargs.setdefault('logfiles', {})['sauce.log'] = 'sauce.log'
         ShellCommand.__init__(self, **kwargs)
         self.addFactoryArguments(username=username,
             api_key=api_key,
@@ -249,7 +249,8 @@ class SauceTests(ShellCommand):
     @defer.inlineCallbacks
     def process(self):
         tests = []
-        for id, line in enumerate(self.getLog("stdio").getText().strip().split("\n")):
+        lines = list(StringIO.StringIO(self.getLog("sauce.log").getText()).readlines())
+        for id, line in enumerate(lines):
             test, session, error = line.split("|")
             test = yield self.process_result(id, test, session, error)
             tests.append(test)
