@@ -26,7 +26,7 @@ from twisted.python import log
 
 from buildbot.process.buildstep import RemoteCommand, LoggingBuildStep, RemoteShellCommand
 from buildbot.steps.shell import ShellCommand
-from buildbot.steps.transfer import _FileReader, StatusRemoteCommand
+from buildbot.steps.transfer import _FileReader, makeStatusRemoteCommand
 from buildbot.interfaces import BuildSlaveTooOldError
 from buildbot.status.builder import SUCCESS, WARNINGS, FAILURE, SKIPPED, \
      EXCEPTION, RETRY
@@ -140,7 +140,7 @@ class StartSauceTunnel(LoggingBuildStep):
             "mode": mode,
             }
 
-        cmd = StatusRemoteCommand('downloadFile', args)
+        cmd = makeStatusRemoteCommand(self, 'downloadFile', args)
         d = self.runCommand(cmd)
         return d
 
@@ -151,12 +151,11 @@ class StartSauceTunnel(LoggingBuildStep):
         return self._transfer_file(sibpath("check.py"), 0755)
 
     def _pwd(self, res):
-        cmd = RemoteShellCommand(".", "/bin/pwd")
+        cmd = RemoteShellCommand(".", ["/bin/pwd"])
         d = self.startCommand("pwd", cmd)
         def _get_stdio(res):
             self.full_workdir_path = cmd.logs['pwd'].getText().strip()
             return res
-        d.addCallback(_get_stdio)
         return d
 
     def _start_sauce_connect(self, result):
