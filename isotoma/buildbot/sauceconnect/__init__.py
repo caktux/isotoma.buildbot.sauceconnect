@@ -113,8 +113,9 @@ class StartSauceTunnel(LoggingBuildStep):
         self.cmd = cmd
 
         # Monitor stdio
-        self.stdio_log = stdio_log = self.addLog(cmdname)
-        cmd.useLog(stdio_log, True)
+        # self.stdio_log = stdio_log = self.addLog(cmdname)
+        self.addLog(cmdname)
+        # cmd.useLog(stdio_log, True)
 
         # Setup other logs files
         self.setupLogfiles(cmd, {"sauce_connect.log": "sauce_connect.log"})
@@ -127,7 +128,7 @@ class StartSauceTunnel(LoggingBuildStep):
             return SUCCESS
         d.addCallback(lambda res: _evaluate(cmd))
 
-        # return d
+        return d
 
     def _transfer_file(self, path, mode):
         """ push a file to root of build area (i.e. outside of any checkout) """
