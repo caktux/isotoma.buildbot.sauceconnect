@@ -162,7 +162,7 @@ class StartSauceTunnel(LoggingBuildStep):
         """ use start-stop-daemon to start sauce_connect """
 
         # start-stop-daemon until sauce_connect can self-background
-        command = ["/sbin/start-stop-daemon", "--background", "--make-pidfile", "--start", "--quiet",
+        command = ["/sbin/start-stop-daemon", "--background", "--make-pidfile", "--start",
                    "--pidfile", "sauce_connect.pid", "--exec", "%s/sauce_connect" % self.full_workdir_path, "--"]
 
         # Maybe one day sauce_connect will self daemonize
