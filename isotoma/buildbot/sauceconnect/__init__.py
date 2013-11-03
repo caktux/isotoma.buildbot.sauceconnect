@@ -127,7 +127,7 @@ class StartSauceTunnel(LoggingBuildStep):
             return SUCCESS
         d.addCallback(lambda res: _evaluate(cmd))
 
-        return d
+        # return d
 
     def _transfer_file(self, path, mode):
         """ push a file to root of build area (i.e. outside of any checkout) """
