@@ -353,7 +353,7 @@ class SauceTests(ShellCommand):
     def parse_tracebacks(self):
         data = StringIO.StringIO(self.getLog("stdio").getText())
 
-        start_marker = "======================================================================\n"
+        start_marker = ".\n"
         eof_marker = "----------------------------------------------------------------------\n"
 
         # Find the first test
