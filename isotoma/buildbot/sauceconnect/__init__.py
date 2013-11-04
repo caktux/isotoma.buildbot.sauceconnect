@@ -113,9 +113,8 @@ class StartSauceTunnel(LoggingBuildStep):
         self.cmd = cmd
 
         # Monitor stdio
-        # self.stdio_log = stdio_log = self.addLog(cmdname)
-        self.addLog(cmdname)
-        # cmd.useLog(stdio_log, True)
+        self.cmdname = cmdname = self.addLog(cmdname)
+        cmd.useLog(cmdname, True)
 
         # Setup other logs files
         self.setupLogfiles(cmd, {"sauce_connect.log": "sauce_connect.log"})
