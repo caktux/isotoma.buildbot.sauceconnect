@@ -109,26 +109,6 @@ class StartSauceTunnel(LoggingBuildStep):
         # Deal with success or failure
         d.addCallback(self.finished).addErrback(self.failed)
 
-    def startCommand(self, cmdname, cmd):
-        self.cmd = cmd
-
-        # Monitor stdio
-        self.cmdname = cmdname = self.addLog(cmdname)
-        cmd.useLog(cmdname, True)
-
-        # Setup other logs files
-        self.setupLogfiles(cmd, {"sauce_connect.log": "sauce_connect.log"})
-
-        d = self.runCommand(cmd) # might raise ConnectionLost
-
-        def _evaluate(cmd):
-            if cmd.rc != 0:
-                return FAILURE
-            return SUCCESS
-        d.addCallback(lambda res: _evaluate(cmd))
-
-        return d
-
     def _transfer_file(self, path, mode):
         """ push a file to root of build area (i.e. outside of any checkout) """
         args = {
@@ -152,7 +132,7 @@ class StartSauceTunnel(LoggingBuildStep):
 
     def _pwd(self, res):
         cmd = RemoteShellCommand(".", ["/bin/pwd"])
-        d = self.startCommand("pwd", cmd)
+        d = self.startCommand(cmd)
         def _get_stdio(res):
             self.full_workdir_path = cmd.logs['pwd'].getText().strip()
             return res
@@ -187,12 +167,12 @@ class StartSauceTunnel(LoggingBuildStep):
         command.extend(["--readyfile", self.readyfile])
 
         cmd = RemoteShellCommand(".", command)
-        return self.startCommand("start-tunnel", cmd)
+        return self.startCommand(cmd)
 
     def _wait_for_sauce(self):
         command = ["./check.py"]
         cmd = RemoteShellCommand(".", command)
-        return self.startCommand("wait-for-tunnel", cmd)
+        return self.startCommand(cmd)
 
 
 class StopSauceTunnel(LoggingBuildStep):
