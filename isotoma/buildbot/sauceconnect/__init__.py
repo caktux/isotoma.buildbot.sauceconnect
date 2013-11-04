@@ -247,11 +247,11 @@ class SauceTests(ShellCommand):
 
     @defer.inlineCallbacks
     def process_result(self, id, test, session, error):
-        baseurl = "https://saucelabs.com/rest/%(u)s/jobs/%(s)s/assets/" % {
+        baseurl = "https://saucelabs.com/rest/%(u)s/jobs/%(s)s/results/" % {
             "u": self.username,
             "s": session,
             }
-        baseurl_withauth = "https://%(u)s:%(k)s@saucelabs.com/rest/%(u)s/jobs/%(s)s/assets/" % {
+        baseurl_withauth = "https://%(u)s:%(k)s@saucelabs.com/rest/%(u)s/jobs/%(s)s/results/" % {
             "u": self.username,
             "k": self.api_key,
             "s": session,
