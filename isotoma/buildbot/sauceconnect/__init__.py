@@ -19,6 +19,8 @@
 import os
 import base64
 import StringIO
+import urllib
+import urllib2
 
 from twisted.internet import defer, reactor
 from twisted.web.client import getPage
@@ -260,11 +262,33 @@ class SauceTests(ShellCommand):
         selenium_log = baseurl_withauth + "selenium-server.log"
         video_flv = baseurl + "video.flv"
 
-        headers = {
-            "Authorization": "Basic " + base64.encodestring("%s:%s" % (self.username, self.api_key)).strip(),
-            }
+        # headers = {
+        #     "Authorization": "Basic " + base64.encodestring("%s:%s" % (self.username, self.api_key)).strip(),
+        # }
+        # headers = urlencode(headers)
 
-        log = yield getPage(baseurl + "selenium-server.log", headers=headers)
+        # create a password manager
+        password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
+
+        # Add the username and password.
+        # If we knew the realm, we could use it instead of None.
+        password_mgr.add_password(None, baseurl, self.username, self.api_key)
+
+        handler = urllib2.HTTPBasicAuthHandler(password_mgr)
+
+        # create "opener" (OpenerDirector instance)
+        opener = urllib2.build_opener(handler)
+
+        # use the opener to fetch a URL
+        # opener.open(a_url)
+
+        # Install the opener.
+        # Now all calls to urllib2.urlopen use our opener.
+        urllib2.install_opener(opener)
+
+        response = urllib2.urlopen(baseurl + 'selenium-server.log')
+        log = response.read()
+        # log = yield getPage(baseurl + "selenium-server.log", headers=headers)
 
         fp = StringIO.StringIO(log)
 
