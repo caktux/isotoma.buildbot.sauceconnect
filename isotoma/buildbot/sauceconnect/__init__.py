@@ -20,6 +20,10 @@ import os
 import base64
 import StringIO
 import requests
+import re
+import datetime
+import hmac
+from hashlib import md5
 
 from twisted.internet import defer, reactor
 from twisted.python import log
@@ -228,18 +232,29 @@ class SauceTests(ShellCommand):
     @defer.inlineCallbacks
     def process(self):
         tests = []
-        for id, line in enumerate(self.getLog("sauce.log").getText().strip().split("\n")):
+        lines = list(StringIO.StringIO(self.getLog("sauce.log").getText()).readlines())
+        for id, line in enumerate(lines):
             test, session, error = line.split("|")
             test = yield self.process_result(id, test, session, error)
             tests.append(test)
 
         # Map tracebacks from nose to logs, screenshots and videos from sauce
-        tracebacks = self.parse_tracebacks()
-        for test in tests:
-           if test["test"] in tracebacks:
-               test["traceback"] = tracebacks[test["test"]]
+        # tracebacks = self.parse_tracebacks()
+        # for test in tests:
+        #    if test["test"] in tracebacks:
+        #        test["traceback"] = tracebacks[test["test"]]
+        lines = list(StringIO.StringIO(self.getLog("stdio").getText()).readlines())
+        passed, total = self._getRatio(lines)
+        # os.chmod(report, stat.S_IROTH) # ?
 
-        template = Template(open(sibpath("summary.tmpl"),"r").read())
+        buildername = self.getProperty('buildername')
+        buildnumber = self.getProperty('buildnumber')
+
+        # codename = "%s-%s" % (buildername, buildnumber)
+        summary_url = 'builders/' + buildername + '/builds/' + str(buildnumber) + '/steps/Sauce tests/logs/summary'
+        self.addURL('passed %s/%s' % (passed, total), summary_url)
+
+        template = Template(open(sibpath("summary.tmpl"), "r").read())
         summary = template.render(username=self.username, key=self.api_key, tests=tests)
 
         defer.returnValue(summary)
@@ -255,18 +270,33 @@ class SauceTests(ShellCommand):
             "k": self.api_key,
             "s": session,
             }
+        baseurl_web = 'https://saucelabs.com/jobs/%(s)s/' % {
+            "s": session
+            }
 
-        selenium_log = baseurl_withauth + "selenium-server.log"
-        video_flv = baseurl + "video.flv"
+        # expire = (datetime.datetime.now() + datetime.timedelta(days=1, hours=12)).strftime("%Y-%m-%d-%H")
+        token = hmac.new("%(u)s:%(k)s" % {
+            'u': self.username,
+            'k': self.api_key
+            }, session, md5).hexdigest()
+        token_arg = '?auth=' + token
+
+        selenium_log = baseurl_web + 'selenium-server.log' + token_arg
+        video_flv = baseurl_web + 'video.flv' + token_arg
 
         r = requests.get(baseurl + 'selenium-server.log', auth=(self.username, self.api_key))
         log = yield r.text
 
         fp = StringIO.StringIO(log)
 
+        r = requests.get(baseurl + 'log.json', auth=(self.username, self.api_key))
+        import simplejson as json
+        json_log = json.dumps(json.loads(r.text), sort_keys=True, indent=4)
+        self.addCompleteLog('test-' + str(id + 1) + '.json', json_log)
+
         results = []
 
-        line = fp.readline()[20:]
+        line = fp.readline()
         while line:
             line, command, result, retval = self.parse_command(line, fp)
 
@@ -276,45 +306,45 @@ class SauceTests(ShellCommand):
             #17:08:04.280 INFO - Command request: captureScreenshot[shot_35.png, ] on session f53271cfce714e0080612387ada6fa7e
 
             screenshot = None
-            if shot.startswith("captureScreenshot"):
+            if 'captureScreenshot' in shot:
                 screenshot_num = shot[shot.find("[shot_")+6:shot.find(".png, ] on session ")-6]
-                screenshot = "%s%sscreenshot.png" % (baseurl_withauth, screenshot_num.rjust(4, "0"))
+                screenshot = "%s%sscreenshot.png" % (baseurl_web, screenshot_num.rjust(4, "0"))
                 line, result, retval = self.get_result(line, fp)
 
             results.append(dict(command=command, result=result, retval=retval, screenshot=screenshot))
 
         screenshots = [x['screenshot'] for x in results if x['screenshot']]
-        last_screenshot = ""
+        last_screenshot = baseurl_web + '0000screenshot.png' + token_arg
         if screenshots:
             last_screenshot = screenshots[-1]
 
         defer.returnValue(dict(id=id, test=test, session=session, error=error, results=results,
-            last_screenshot=last_screenshot, video_flv=video_flv, selenium_log=selenium_log))
+            last_screenshot=last_screenshot, video_flv=video_flv, selenium_log=selenium_log, token=token))
 
     def get_command(self, line, fp):
-        while line and not line.startswith("Command request"):
-            line = fp.readline()[20:]
+        while line and "Command received" not in line:
+            line = fp.readline()[18:]
 
         # Have a line that looks something like this:
         #17:08:04.248 INFO - Command request: click[//dl[@id='plone-contentmenu-workflow']/dt/a/span[3], ] on session f53271cfce714e0080612387ada6fa7e
 
-        if line.startswith("Command request"):
-            return line, line[17:line.find(" on session ")]
+        if "Command received" in line:
+            return line, line[19:line.find(')')]
 
         return line, ""
 
     def get_result(self, line, fp):
-        while line and not line.startswith("Got result"):
-            line = fp.readline()[20:]
+        while line and "Command finished" not in line:
+            line = fp.readline()[18:]
 
         # Have a line that looks something like this:
         #17:08:04.670 INFO - Got result: OK on session f53271cfce714e0080612387ada6fa7e
 
-        result = line[12:line.find(" on session ")].strip()
+        result = line[19:line.find("with response")].strip()
         retval = None
 
-        if result.startswith("OK,"):
-            retval = result[3:]
+        if "Coommand finished" in result:
+            retval = result[19:line.find(')')]
             result = "OK"
 
         return line, result, retval
@@ -325,45 +355,24 @@ class SauceTests(ShellCommand):
 
         return line, command, result, retval
 
-    def parse_tracebacks(self):
-        data = StringIO.StringIO(self.getLog("stdio").getText())
-
-        start_marker = ".\n"
-        eof_marker = "----------------------------------------------------------------------\n"
-
-        # Find the first test
-        line = data.readline()
-        while line and line != start_marker:
-            line = data.readline()
-
-        tests = {}
-
-        # Loop until end of stream
-        while line:
-            test_id = data.readline()
-            test_id = test_id[test_id.find(":")+2:-1]
-
-            traceback = []
-
-            # skip a line (it should be -------------)
-            data.readline()
-
-            # Read until the next ====== (read until next test..)
-            line = data.readline()
-            while line and line != start_marker:
-                # Nasty check for '-----------\nRan x tests in x seconds'
-                if line == eof_marker:
-                    line = data.readline()
-                    if line.startswith("Ran "):
-                        line = None
-                        break
-                    else:
-                        traceback.append(eof_marker)
-
-                traceback.append(line)
-                line = data.readline()
-
-            tests[test_id] = "".join(traceback)
-
-        return tests
+    def _getRatio(self, lines):
+        '''Returns total and passed tests'''
+        passed = None
+        total = 0
+        for line in lines:
+            if line.startswith('Ran'):
+                total = line.split()[1]
+            if line.startswith('FAILED'):
+                regex = re.compile("FAILED \((errors=[0-9]+)?(, )?(failures=[0-9]+)?\)")
+                r = regex.search(line)
+                groups = r.groups()
+                passed = int(total)
+                if isinstance(groups, basestring):
+                    passed = passed - int(groups[0].split('=')[-1])
+                if len(groups) == 3 and isinstance(groups[2], basestring):
+                    passed =  passed - int(groups[2].split('=')[-1])
+                    break
+        if passed is None:
+            passed = total
+        return (passed, total)
 
