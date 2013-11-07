@@ -10,6 +10,40 @@ The package provides buildbot steps for using the Saucelabs service, including
 a wrapper for sauce_connect and a test runner for summarising the test results.
 
 
+Requirements
+------------
+A nosetests plugin is required to create our sauce.log file with the session ID of
+each tests. Install with `pip` or in your favorite fashion.
+
+https://github.com/caktux/nose-sauce
+
+
+Running Tests
+-------------
+
+You can run tests however you like, but if you want to make the test results available
+from buildbot and available to people without your master saucelabs password you will
+need some integration machinery.
+
+The SauceTests step processes the logs from the test run and attaches a HTML summary
+with access to images and videos of the test run. You can use it like so::
+
+    from isotoma.buildbot.sauceconnect import SauceTests
+    f.addStep(SauceTests(
+        username="username",
+        api_key="password",
+        command=['nosetests', '--with-sauce', '/path/to/your/test.py'],
+        name = 'Sauce tests',
+        description = 'running Sauce tests',
+        descriptionDone = 'Sauce tests',
+        ))
+
+It's expected that sauce.log will contain a list of tests, saucelab session ids
+and the outcome of the test run. The relevant logs are fetched from saucelabs
+and parsed. A summary with swishy ajax screenshot browsing and embedded videos is
+generated and attached to the buildbot log.
+
+
 Starting a Sauce Tunnel
 -----------------------
 
@@ -29,35 +63,6 @@ To start a tunnel you use the StartSauceTunnel step::
         domains="www.foo.com",
         ports=['80'],
         ))
-
-
-Running Tests
--------------
-
-You can run tests however you like, but if you want to make the test results available
-from buildbot and available to people without your master saucelabs password you will
-need some integration machinery.
-
-The SauceTests step processes the logs from the test run and attaches a HTML summary
-with access to images and videos of the test run. You can use it like so::
-
-    from isotoma.buildbot.sauceconnect import SauceTests
-    f.addStep(SauceTests(
-        username="username",
-        api_key="password",
-        command="./bin/test",
-        logfiles={"sauce.log": "sauce.log"},
-        ))
-
-It's expected that sauce.log will contain a list of tests, saucelab session ids
-and the outcome of the test run. The relevant logs are fetched from saucelabs
-and parsed. A summary with swishy ajax screenshot browsing and embedded videos is
-generated and attached to the buildbot log.
-
-This process is currently very limited: because it relies on saucelabs to host the
-media it leaks your username/api-key and violates security restrictions in firefox.
-To get around this we'll need to store the output images and videos ourselves. This
-is coming in the near future, but until then it works just fine with Google Chrome.
 
 
 Stopping a Sauce Tunnel
