@@ -22,7 +22,6 @@ import StringIO
 import requests
 import re
 import datetime
-import simplejson as json
 import hmac
 from hashlib import md5
 
@@ -290,11 +289,11 @@ class SauceTests(ShellCommand):
 
         fp = StringIO.StringIO(log)
 
-        r = requests.get(baseurl + 'log.json', auth=(self.username, self.api_key))
+        json_log = requests.get(baseurl + 'log.json', auth=(self.username, self.api_key)).json()
 
-        if (r.text):
-            json_log = json.dumps(json.loads(r.text), sort_keys=True, indent=4)
-            self.addCompleteLog('test-' + str(id + 1) + '.json', json_log)
+        if (json_log):
+            json_dump = json.dumps(json_log, sort_keys=True, indent=4)
+            self.addCompleteLog('test-' + str(id + 1) + '.json', json_dump)
 
         results = []
 
